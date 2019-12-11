@@ -50,6 +50,12 @@ module.exports = {
 					},
 					`gatsby-remark-autolink-headers`,
 					`gatsby-remark-copy-linked-files`,
+					{
+						resolve: `open-code-example-in-new-tab`,
+						options: {
+							matchPath: /rules\//,
+						},
+					},
 					`gatsby-remark-prismjs`,
 				],
 			},
