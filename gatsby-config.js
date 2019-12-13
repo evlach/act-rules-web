@@ -48,6 +48,13 @@ module.exports = {
 							toHeadingDepth: 3,
 						},
 					},
+					{
+						resolve: `open-code-example-in-new-tab`,
+						options: {
+							matchPath: /rules\//,
+							label: `Open example in a new tab`,
+						},
+					},
 					`gatsby-remark-autolink-headers`,
 					`gatsby-remark-copy-linked-files`,
 					{
