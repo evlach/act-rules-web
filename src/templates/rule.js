@@ -1,24 +1,17 @@
 import React from 'react'
-import { graphql } from 'gatsby'
+import { graphql, Link } from 'gatsby'
 import showdown from 'showdown'
-
+import { format } from 'date-fns'
 import SEO from '../components/seo'
 import Layout from '../components/layout'
-import Acknowledgements from '../components/acknowledgements'
+import Acknowledgments from '../components/acknowledgments'
+import Glossary from '../components/glossary'
 import AccessibilityRequirements from '../components/accessibility_requirements'
 import ListOfImplementers from '../components/list-of-implementers'
 import RuleTableOfContents from '../components/rule-table-of-contents'
-
+import ListWithHeading from '../components/list-with-heading'
+import rulesUsages from '../../_data/rules-usages.json'
 import curateGitUrl from '../../utils/curate-git-url'
-import {
-	getGlossaryUsed,
-	getRuleUsageInRules,
-	getRuleType,
-	getInputRulesForRule,
-	getInputAspects,
-	getDateTimeFromUnixTimestamp,
-} from './../utils/render-fragments'
-
 import implementers from '../../_data/implementers.json'
 
 import './rule.scss'
@@ -26,10 +19,10 @@ import './rule.scss'
 export default ({ location, data }) => {
 	const { rule, allRules, allGlossary, site } = data
 	const { html, frontmatter, tableOfContents, fields } = rule
-	const { slug, fastmatterAttributes, changelog, fileName } = fields
+	const { fastmatterAttributes, changelog, fileName } = fields
 	const { relativePath } = fileName
 	const ruleChangelog = JSON.parse(changelog)
-	const { accessibility_requirements, acknowledgements } = JSON.parse(fastmatterAttributes)
+	const parsedFrontmatter = JSON.parse(fastmatterAttributes)
 	const converter = new showdown.Converter()
 	const { repository, config, contributors } = JSON.parse(site.siteMetadata.actRulesPackage)
 	const repositoryUrl = curateGitUrl(repository.url)
@@ -39,7 +32,7 @@ export default ({ location, data }) => {
 	const changelogUrl = `/rules/${ruleId}/changelog`
 	const issuesUrl = `${repositoryUrl}/issues?utf8=%E2%9C%93&q=is%3Aissue+is%3Aopen+${ruleId}+`
 	const ruleFormatInputAspects = config['rule-format-metadata']['input-aspects']
-
+	const usedInRules = rulesUsages[ruleId]
 	const validImplementers = implementers.filter(({ actMapping }) => {
 		const validMappings = actMapping.filter(({ ruleId: mappedRuleId, consistency }) => {
 			return mappedRuleId === ruleId && ['consistent', 'partially-consistent'].includes(consistency)
@@ -63,31 +56,97 @@ export default ({ location, data }) => {
 				</header>
 				{/* frontmatter */}
 				<ul className="meta">
-					{getRuleType(frontmatter.rule_type)}
+					{frontmatter.rule_type && (
+						<li>
+							<span className="heading">Rule Type:</span>
+							<span>{frontmatter.rule_type}</span>
+						</li>
+					)}
 					<li>
-						<span className="heading">Rule ID:</span>
+						<span className="heading">Rule Id:</span>
 						<span> {ruleId}</span>
 					</li>
 					<li>
 						<span className="heading">Last modified:</span>
 						<span>
 							{' '}
-							{ruleChangelog && ruleChangelog.length ? getDateTimeFromUnixTimestamp(ruleChangelog[0].date) : '-'
-							// todo: auto play audio rule merge fails getting git logs, to be investigated
-							}
+							{ruleChangelog && ruleChangelog.length ? format(new Date(ruleChangelog[0].date), 'MMM dd, yyyy') : '-'}
 						</span>
 					</li>
 					<li>
-						<AccessibilityRequirements accessibility_requirements={accessibility_requirements} />
+						<AccessibilityRequirements accessibility_requirements={parsedFrontmatter.accessibility_requirements} />
 					</li>
-					<li>{getRuleUsageInRules(ruleId)}</li>
-					<li>{getInputAspects(frontmatter.input_aspects, ruleFormatInputAspects)}</li>
-					<li>{getInputRulesForRule(frontmatter.input_rules, allRules.edges, true)}</li>
+					{usedInRules && usedInRules.length > 0 && (
+						<li>
+							<ListWithHeading
+								cls={`side-notes`}
+								headingTemplate={() => <span className="heading">Used in rules:</span>}
+								itemTemplate={item => (
+									<li key={item.slug}>
+										<Link to={`/${item.slug}`}>
+											<span
+												dangerouslySetInnerHTML={{
+													__html: converter.makeHtml(item.name),
+												}}
+											/>
+										</Link>
+									</li>
+								)}
+								items={usedInRules}
+							/>
+						</li>
+					)}
+					{frontmatter.input_aspects && frontmatter.input_aspects.length && (
+						<li>
+							<ListWithHeading
+								cls={`side-notes`}
+								headingTemplate={() => <span className="heading">Input Aspects:</span>}
+								itemTemplate={aspect => {
+									const aHref = ruleFormatInputAspects[aspect]
+										? ruleFormatInputAspects[aspect]
+										: ruleFormatInputAspects['default']
+									return (
+										<li key={aspect}>
+											<a className="sc-item block" href={aHref}>
+												{aspect}
+											</a>
+										</li>
+									)
+								}}
+								items={frontmatter.input_aspects}
+							/>
+						</li>
+					)}
+					{frontmatter.input_rules && frontmatter.input_rules.length && (
+						<li>
+							<ListWithHeading
+								cls={`side-notes`}
+								headingTemplate={() => <span className="heading">Input Rules:</span>}
+								itemTemplate={inputRuleId => {
+									const atomicRule = allRules.edges.find(rule => rule.node.frontmatter.id === inputRuleId)
+									const aHref = atomicRule.node.fields.slug.replace('rules/', '')
+									const name = atomicRule.node.frontmatter.name
+									return (
+										<li key={inputRuleId}>
+											<a
+												className="sc-item block"
+												href={aHref}
+												dangerouslySetInnerHTML={{
+													__html: converter.makeHtml(name),
+												}}
+											></a>
+										</li>
+									)
+								}}
+								items={frontmatter.input_rules}
+							/>
+						</li>
+					)}
 				</ul>
 				<hr />
 				{/* Description */}
 				<h2 id="description">
-					<a href="#description" aria-label="description permalink" className="anchor">
+					<a href="#description" aria-label="description permalink" className="anchor before">
 						<svg aria-hidden="true" focusable="false" height="16" viewBox="0 0 16 16" width="16">
 							<path
 								fillRule="evenodd"
@@ -110,7 +169,7 @@ export default ({ location, data }) => {
 				/>
 				<hr />
 				{/* glossary */}
-				{getGlossaryUsed(slug, allGlossary)}
+				<Glossary ruleId={ruleId} glossaryData={allGlossary} />
 				<hr />
 				{/* Useful links */}
 				<a href="#useful-links" id="useful-links">
@@ -144,10 +203,19 @@ export default ({ location, data }) => {
 					<a id="implementation-metrics" href="#implementation-metrics">
 						<h2>Implementations</h2>
 					</a>
+					<p>
+						This section is not part of the official rule. It is populated dynamically and not accounted for in the
+						change history or the last modified date. This section will not be included in the rule when it is published
+						on the W3C website.
+					</p>
 					<ListOfImplementers implementers={validImplementers} ruleId={ruleId} />
 				</>
-				{/* acknowledgements */}
-				<Acknowledgements scrollLinkId={`acknowledgements`} items={acknowledgements} contributors={contributors} />
+				{/* Acknowledgments */}
+				<Acknowledgments
+					scrollLinkId={`acknowledgments`}
+					items={parsedFrontmatter.acknowledgments || parsedFrontmatter.acknowledgements}
+					contributors={contributors}
+				/>
 			</section>
 			{/* Toc */}
 			<RuleTableOfContents toc={tableOfContents} />

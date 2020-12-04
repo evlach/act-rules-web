@@ -1,0 +1,36 @@
+{
+	"root": true,
+	"env": {
+		"browser": true,
+		"es2020": true,
+		"node": true
+	},
+	"extends": ["eslint:recommended", "plugin:react/recommended", "prettier"],
+	"parserOptions": {
+		"ecmaFeatures": {
+			"jsx": true
+		},
+		"ecmaVersion": 11,
+		"sourceType": "module"
+	},
+	"settings": {
+		"react": {
+			"version": "detect"
+		}
+	},
+	"plugins": ["react"],
+	"rules": {
+		"react/prop-types": "off",
+		"react/display-name": "off"
+	},
+	"overrides": [
+		{
+			"files": ["**/*.{spec,test}.{js,jsx}", "**/__tests__/**/*.{js,jsx}"],
+			"env": {
+				"jest": true
+			},
+			"plugins": ["jest"],
+			"rules": {}
+		}
+	]
+}

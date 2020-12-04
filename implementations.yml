@@ -7,10 +7,14 @@
   output: ./_data/implementations/rgaa.json
 
 - organisation: 'Deque Systems'
-  toolName: 'Axe Core'
-  jsonReports: ./node_modules/act-rules-implementation-axe-core/report.json
+  toolName: 'axe-core'
+  jsonReports: ./_data/reports/axe-core-report.json
   testcases: ./_data/testcases/testcases.json
   output: ./_data/implementations/axe.json
+  description: |
+    ACT rules are tested using a canary version of axe-core, which can be accessed by installing `axe-core@next` from NPM. 
+    For these results, all rules including “experimental” rules are enabled. 
+    Checks with “unsupported” in its ID are disabled, which deal with issues of accessibility support issues which ACT rules do not account for, often by design.
 
 - organisation: 'LASIGE, Faculdade de Ciências da Universidade de Lisboa'
   toolName: 'QualWeb'
@@ -20,9 +24,15 @@
 
 - organisation: 'Level Access'
   toolName: 'Access Engine'
-  jsonReports: ./node_modules/act-rules-implementation-access-engine/report.json
+  jsonReports: ./node_modules/act-rules-implementation-access-engine/reports/*.json
   testcases: ./_data/testcases/testcases.json
   output: ./_data/implementations/access-engine.json
+
+- organisation: 'PowerMapper'
+  toolName: 'SortSite'
+  jsonReports: ./node_modules/act-rules-implementation-sortsite/report.json
+  testcases: ./_data/testcases/testcases.json
+  output: ./_data/implementations/sortsite.json
 
 - organisation: 'Siteimprove'
   toolName: 'Alfa'

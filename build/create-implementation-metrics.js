@@ -1,40 +1,28 @@
-const assert = require('assert')
 const program = require('commander')
 const globby = require('globby')
 const readFile = require('../utils/read-file')
 const createFile = require('../utils/create-file')
 
-/**
- * Parse `args`
- */
 program
-	.option('-i, --implementations <implementations>', 'JSON files containing implementations')
-	.option('-o, --outputDir <outputDir>', 'output directory to create the meta data')
+	.option(
+		'-i, --implementations <implementations>',
+		'JSON files containing implementations',
+		'./_data/implementations/*.json'
+	)
+	.option('-o, --outputDir <outputDir>', 'output directory to create the meta data', './_data')
 	.parse(process.argv)
 
-/**
- * Invoke
- */
-init(program)
+createImplementationMetrics(program)
+	.then(() => {
+		console.info('Completed create-implementation-metrics')
+		process.exit()
+	})
 	.catch(e => {
 		console.error(e)
 		process.exit(1)
 	})
-	.finally(() => console.info('Completed'))
 
-/**
- * Init
- */
-async function init({ implementations, outputDir }) {
-	/**
-	 * assert `args`
-	 */
-	assert(implementations, '`implementations` is required')
-	assert(outputDir, '`outputDir` is required')
-
-	/**
-	 * Get all implementation reports
-	 */
+async function createImplementationMetrics({ implementations, outputDir }) {
 	const reports = globby.sync(implementations).map(reportPath => {
 		const fileContent = readFile(reportPath)
 		return JSON.parse(fileContent)
@@ -44,16 +32,9 @@ async function init({ implementations, outputDir }) {
 	const implementationsGroupedByRuleId = {}
 
 	reports.forEach(report => {
-		const { organisation, toolName, actMapping } = report
+		const { organisation, toolName, actMapping, description } = report
 
-		/**
-		 * Create data that can be used in `src/templates/coverage.js`
-		 */
 		implementers.push(report)
-
-		/**
-		 * Iterate each implementations & group by rule id
-		 */
 		actMapping.forEach(({ ruleId, implementations }) => {
 			if (!implementations || !implementations.length) {
 				return
@@ -67,17 +48,11 @@ async function init({ implementations, outputDir }) {
 				organisation,
 				toolName,
 				implementations,
+				description,
 			})
 		})
 	})
 
-	/**
-	 * Create `implementations.json`
-	 */
 	await createFile(`${outputDir}/implementers.json`, JSON.stringify(implementers, null, 2))
-
-	/**
-	 * Create `implementation-metrics.json`
-	 */
 	await createFile(`${outputDir}/implementation-metrics.json`, JSON.stringify(implementationsGroupedByRuleId, null, 2))
 }
