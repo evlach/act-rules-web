@@ -8,6 +8,16 @@
 	padding-top: 3rem;
 	overflow-y: auto;
 
+	div.open-ex-new-tab-wrapper {
+		display: flex;
+		justify-content: space-between;
+		align-items: baseline;
+
+		> h4 {
+			margin-bottom: 0;
+		}
+	}
+
 	ul.meta,
 	div.meta {
 		@include reset-list();
@@ -20,7 +30,7 @@
 			background-color: $sep;
 			border: 1px solid $transparent;
 			text-transform: capitalize;
-			display: inline-block;
+			display: inline-flex;
 			font-weight: bold;
 			margin-top: 1em;
 			font-size: 90%;
@@ -38,13 +48,16 @@
 		}
 		a.sc-item {
 			cursor: pointer;
-			text-decoration: none;
 			text-transform: capitalize;
 			&:hover {
-				color: $accent;
+				opacity: 0.9;
 			}
 			&.block {
 				display: block;
+				p {
+					margin: 0;
+					padding: 0;
+				}
 			}
 		}
 	}

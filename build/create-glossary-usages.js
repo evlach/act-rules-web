@@ -1,129 +1,91 @@
-/**
- * Create glossary usages
- * -> for each glossary item (find references in each rule)
- * -> this is saved for later use in `pages/glossary`
- */
-const assert = require('assert')
 const program = require('commander')
-const regexps = require('../utils/reg-exps')
-const createFile = require('../utils/create-file')
-const getAllMatchesForRegex = require('../utils/get-all-matches-for-regex')
 const getMarkdownData = require('../utils/get-markdown-data')
+const getMarkdownAstNodesOfType = require('../utils/get-markdown-ast-nodes-of-type')
+const isUrl = require('is-url')
+const fs = require('fs-extra')
+const path = require('path')
 
-/**
- * Parse `args`
- */
 program
-	.option('-r, --rulesDir <rulesDir>', 'Directory containing rules markdown files')
-	.option('-o, --outputDir <outputDir>', 'output directory to create the meta data')
+	.requiredOption('-r, --rulesDir <rulesDir>', 'Directory containing rules markdown files')
+	.requiredOption('-r, --glossaryDir <glossaryDir>', 'Directory containing glossary markdown files')
+	.requiredOption('-o, --outputDir <outputDir>', 'output directory to create the meta data')
 	.parse(process.argv)
 
-/**
- * Invoke
- */
-init(program)
+createGlossaryUsage(program)
+	.then(() => {
+		console.info('Completed create-glossary-usages')
+		process.exit()
+	})
 	.catch(e => {
 		console.error(e)
 		process.exit(1)
 	})
-	.finally(() => console.info('Completed'))
+
+async function createGlossaryUsage({ rulesDir, glossaryDir, outputDir }) {
+	const result = getGlossaryUsages(rulesDir, glossaryDir)
+	const outputFile = path.join(outputDir, 'glossary-usages.json')
+	await fs.ensureFile(outputFile)
+	await fs.writeJson(outputFile, result, { spaces: 2 })
+}
 
 /**
- * Init
+ * Get a map of glossary keys used for each rule
+ * eg: "59br37": ["#attribute-value","#clipped-by-overflow"]
+ * @param {String} rulesDir
+ * @param {String} glossaryDir
  */
-async function init({ rulesDir, outputDir }) {
-	/**
-	 * assert `args`
-	 */
-	assert(rulesDir, '`rulesDir` is required')
-	assert(outputDir, '`outputDir` is required')
-
-	/**
-	 * Get all rules `markdown` data
-	 */
+function getGlossaryUsages(rulesDir, glossaryDir) {
 	const rulesData = getMarkdownData(rulesDir)
+	const glossaryData = getMarkdownData(glossaryDir)
+	const recursiveGlossaryRefs = getResursiveGlossaryReferences(glossaryData)
 
-	/**
-	 * Eg:
-	 * {
-	 *  `non-empty`: [
-	 *    { name: `aria valid ...`, slug: `rules/XXXXX` },
-	 *    ....
-	 *  ]
-	 *  ....
-	 * }
-	 */
-	const glossaryUsages = {}
+	const result = new Map()
 
-	rulesData.forEach(ruleData => {
-		const { frontmatter, body } = ruleData
-		const { id: ruleId, name: ruleName, accessibility_requirements: ruleAccessibilityRequirements } = frontmatter
+	for (const { frontmatter, markdownAST } of rulesData) {
+		const glossaryKeys = getGlossaryKeysFromMarkdown(markdownAST)
 
-		// Finding classical glossary usages: "this is a [link](key)"
-		const glossaryMatches = getAllMatchesForRegex(regexps.glossaryReferenceInRules, body, false)
+		let recursiveKeys = []
+		for (const key of glossaryKeys) {
+			recursiveKeys = recursiveKeys.concat(recursiveGlossaryRefs.get(key))
+		}
+		const values = [...new Set([...glossaryKeys, ...recursiveKeys])].sort((a, b) => a.localeCompare(b))
 
-		glossaryMatches.forEach(glossaryItem => {
-			const hasGlossaryKey = regexps.glossaryKey.test(glossaryItem.block)
-			if (!hasGlossaryKey) {
-				return
-			}
+		result.set(frontmatter.id, values)
+	}
 
-			const key = glossaryItem.block.match(regexps.glossaryKey)[1]
-			if (!key) {
-				return
-			}
+	return Object.fromEntries(result)
+}
 
-			const usage = {
-				name: ruleName,
-				slug: `rules/${ruleId}`,
-			}
-			if (!glossaryUsages[key]) {
-				glossaryUsages[key] = [usage]
-				return
-			}
+/**
+ * Build a map of recursive references to glossary data
+ * @param {Object} glossaryData
+ */
+function getResursiveGlossaryReferences(glossaryData) {
+	const result = new Map()
+	for (const { frontmatter, markdownAST } of glossaryData) {
+		const glossaryKeys = getGlossaryKeysFromMarkdown(markdownAST)
+		result.set(`#${frontmatter.key}`, glossaryKeys)
+	}
+	return result
+}
 
-			const exists = glossaryUsages[key].some(u => u.slug === usage.slug)
-			if (exists) {
-				return
-			}
-
-			glossaryUsages[key] = glossaryUsages[key].concat(usage)
-		})
-
-		// Finding internal ref glossary usage: "[refname]: key"
-		const glossaryInlinedMatches = getAllMatchesForRegex(regexps.glossaryDefinitionInRules, body, false)
-
-		glossaryInlinedMatches.forEach(glossaryDef => {
-			const hasGlossaryKey = regexps.glossaryKeyInDefinition.test(glossaryDef.block)
-			if (!hasGlossaryKey) {
-				return
-			}
-
-			const key = glossaryDef.block.match(regexps.glossaryKeyInDefinition)[1]
-			if (!key) {
-				return
-			}
-
-			const usage = {
-				name: ruleName,
-				slug: `rules/${ruleId}`,
-			}
-			if (!glossaryUsages[key]) {
-				glossaryUsages[key] = [usage]
-				return
-			}
-
-			const exists = glossaryUsages[key].some(u => u.slug === usage.slug)
-			if (exists) {
-				return
-			}
-
-			glossaryUsages[key] = glossaryUsages[key].concat(usage)
-		})
+/**
+ * Walk the markdown tree and get all links that are glossary references
+ * @param {Object} markdownAST
+ */
+function getGlossaryKeysFromMarkdown(markdownAST) {
+	// get all links -> eg: [Alpha](https://....) or [Beta](#semantic-role)
+	const pageLinks = getMarkdownAstNodesOfType(markdownAST, 'link').map(({ url }) => url)
+	// get all definition links  -> eg: [alpha]: https:// 'Link to something' or [beta]: #some-glossary 'Def to some glossary'
+	const definitionLinks = getMarkdownAstNodesOfType(markdownAST, 'definition').map(({ url }) => url)
+	// unique links and filter out url links
+	return [...new Set([...pageLinks, ...definitionLinks])].filter(link => {
+		if (isUrl(link)) {
+			return false
+		}
+		if (!link.trim().startsWith('#')) {
+			return false
+		}
+		return true
 	})
-
-	/**
-	 * Create `glossary-usages.json`
-	 */
-	await createFile(`${outputDir}/glossary-usages.json`, JSON.stringify(glossaryUsages, undefined, 2))
 }

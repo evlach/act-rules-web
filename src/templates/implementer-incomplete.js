@@ -11,8 +11,10 @@ import Badge from '../components/badge'
 import './implementer-incomplete.scss'
 
 const ImplementerIncomplete = ({ location, data }) => {
-	const { title, implementerData } = data.sitePage.context
-	const { actMapping } = JSON.parse(implementerData)
+	const { implementerData } = data.sitePage.context
+	const { organisation, toolName, actMapping, description } = JSON.parse(implementerData)
+
+	const title = `Incomplete implementations report of ${toolName} (${organisation})`
 	const completeMaps = filterByConsistency(actMapping, ['consistent', 'partially-consistent'])
 	const incompleteMaps = filterByConsistency(actMapping, ['inconsistent'])
 
@@ -20,7 +22,11 @@ const ImplementerIncomplete = ({ location, data }) => {
 		<Layout location={location}>
 			<SEO title={title} />
 			<section className="page-implementer-incomplete">
+				{/* title  */}
 				<h1>{title}</h1>
+				{/* desc  */}
+				{description && <p>{description}</p>}
+				{/* impl  */}
 				{data.allRules.edges.map(({ node }) => {
 					const {
 						frontmatter: { id, name, rule_type },

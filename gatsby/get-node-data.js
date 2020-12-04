@@ -1,7 +1,7 @@
 const fs = require('fs')
+const axios = require('axios')
 const fastmatter = require('fastmatter')
 const { createFilePath } = require('gatsby-source-filesystem')
-const getGitLog = require('./../utils/get-git-log')
 
 /**
  * Get node data, to enhance metadata of pages
@@ -22,28 +22,18 @@ const getNodeData = async options => {
 	}
 
 	switch (sourceInstanceName) {
-		case 'rules':
+		case 'rules': {
 			const { id } = attributes
 			const path = `${sourceInstanceName}/${id}`
-			const gitLog = await getGitLog({
-				file: `./_rules/${relativePath}`,
-				schema: {
-					commit: '%H',
-					msg: '%s',
-					date: '%ct',
-				},
-			})
-
-			/**
-			 * Ignore `chore` log items
-			 */
-			const logs = gitLog.filter(({ msg }) => !/^chore/i.test(msg))
+			const gitUrl = `https://api.github.com/repos/act-rules/act-rules.github.io/commits?path=_rules/${relativePath}`
+			const logs = await getGitLog(gitUrl)
 
 			return {
 				...defaults,
 				path,
 				changelog: JSON.stringify(logs),
 			}
+		}
 		default:
 			return {
 				...defaults,
@@ -51,6 +41,8 @@ const getNodeData = async options => {
 			}
 	}
 }
+
+module.exports = getNodeData
 
 /**
  * Get markdown type
@@ -74,4 +66,42 @@ function getMarkdownType(path, sourceInstanceName) {
 	return 'default'
 }
 
-module.exports = getNodeData
+/**
+ * get git log of a given file
+ * @param {string} url
+ */
+async function getGitLog(url) {
+	if (!process.env.GITHUB_USER_PERSONAL_ACCESS_TOKEN) {
+		console.warn(`Please set up github access token as environment variable`)
+		return []
+	}
+
+	const result = []
+	const { data } = await axios.get(url, {
+		headers: {
+			Authorization: `Bearer ${process.env.GITHUB_USER_PERSONAL_ACCESS_TOKEN}`,
+			'Content-Type': 'application/json',
+		},
+	})
+
+	if (!data || !data.length) {
+		return result
+	}
+
+	for (const { sha, html_url, commit } of data) {
+		// ignore when no commit or  `chore` and `test` commits
+		if (!commit || /^chore|test/i.test(commit.message)) {
+			continue
+		}
+
+		const log = {
+			date: commit.committer.date,
+			message: commit.message,
+			sha: sha,
+			htmlUrl: html_url,
+		}
+		result.push(log)
+	}
+
+	return result
+}
